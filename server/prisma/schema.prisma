@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SessionStatus {
+  RUNNING
+  COMPLETED
+  MAX_STEPS_REACHED
+  FAILED
+}
+
+model User {
+  id        String            @id @default(cuid())
+  email     String            @unique
+  password  String
+  name      String?
+  createdAt DateTime          @default(now())
+  sessions  ResearchSession[]
+}
+
+model ResearchSession {
+  id               String        @id @default(cuid())
+  userId           String
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic            String
+  status           SessionStatus @default(RUNNING)
+  reportMarkdown   String?
+  reportJson       Json?
+  totalCost        Float         @default(0)
+  totalDurationMs  Int           @default(0)
+  totalSteps       Int           @default(0)
+  promptTokens     Int           @default(0)
+  completionTokens Int           @default(0)
+  errorMessage     String?
+  startedAt        DateTime      @default(now())
+  completedAt      DateTime?
+  agentTraces      AgentTrace[]
+  feedEvents       FeedEvent[]
+
+  @@index([userId, startedAt])
+}
+
+model AgentTrace {
+  id               String          @id @default(cuid())
+  sessionId        String
+  session          ResearchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  agentId          String
+  agentName        String
+  status           String          @default("running")
+  input            Json?
+  output           Json?
+  promptTokens     Int             @default(0)
+  completionTokens Int             @default(0)
+  estimatedCost    Float           @default(0)
+  durationMs       Int             @default(0)
+  error            String?
+  retries          Int             @default(0)
+  startedAt        DateTime        @default(now())
+  completedAt      DateTime?
+  steps            StepDetail[]
+
+  @@index([sessionId, startedAt])
+}
+
+model StepDetail {
+  id               String     @id @default(cuid())
+  agentTraceId     String
+  agentTrace       AgentTrace @relation(fields: [agentTraceId], references: [id], onDelete: Cascade)
+  stepIndex        Int
+  eventType        String
+  toolName         String?
+  toolArgs         Json?
+  toolResult       Json?
+  promptTokens     Int        @default(0)
+  completionTokens Int        @default(0)
+  message          String?
+  timestamp        DateTime   @default(now())
+
+  @@index([agentTraceId, stepIndex])
+}
+
+model FeedEvent {
+  id        String          @id @default(cuid())
+  sessionId String
+  session   ResearchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  agentId   String
+  agentName String
+  eventType String
+  message   String
+  payload   Json?
+  timestamp DateTime        @default(now())
+
+  @@index([sessionId, timestamp])
+}
